@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Planner</title>
+<style>
+:root {
+  --primary: #007aff;
+  --success: #34c759;
+  --danger: #ff3b30;
+  --bg: #f2f2f7;
+  --card: #ffffff;
+  --text: #000000;
+  --text2: #8e8e93;
+  --border: #d1d1d6;
+  --tab-h: 50px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 0.5px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.tab-btn {
+  flex: 1;
+  height: var(--tab-h);
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: var(--text2);
+  cursor: pointer;
+  position: relative;
+  font-family: inherit;
+  font-weight: 500;
+}
+.tab-btn.active { color: var(--primary); font-weight: 600; }
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 20%; right: 20%;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+}
+
+/* Panels */
+.panel { display: none; padding: 16px; padding-bottom: 90px; }
+.panel.active { display: block; }
+
+/* Card */
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+
+/* Chips */
+.chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  color: var(--text2);
+  cursor: pointer;
+  font-family: inherit;
+}
+.chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* Section label */
+.section-label {
+  font-size: 12px;
+  color: var(--text2);
+  margin: 16px 0 8px 4px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* TODO item */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 0.5px solid var(--bg);
+}
+.todo-item:last-child { border-bottom: none; }
+.circle {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.circle.done { background: var(--success); border-color: var(--success); }
+.circle.done::after { content: '✓'; color: #fff; font-size: 12px; font-weight: bold; }
+.todo-body { flex: 1; min-width: 0; }
+.todo-text { font-size: 15px; line-height: 1.4; }
+.todo-text.done { text-decoration: line-through; color: var(--text2); }
+.todo-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.tag-high { background: #ffe5e5; color: #cc0000; }
+.del-btn { color: var(--border); cursor: pointer; font-size: 18px; padding: 0 4px; flex-shrink: 0; }
+.del-btn:active { color: var(--danger); }
+
+/* Habit card */
+.habit-card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 15px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+.habit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
+}
+.habit-name { font-size: 16px; font-weight: 600; }
+.habit-goal { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+.week-row {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.week-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.week-label { font-size: 10px; color: var(--text2); }
+.dot {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text2);
+}
+.dot.done { background: var(--primary); border-color: var(--primary); color: #fff; font-size: 12px; }
+.dot.is-today { border-color: var(--primary); border-width: 2px; }
+.habit-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.habit-progress { font-size: 13px; color: var(--text2); }
+.habit-progress b { color: var(--primary); }
+.record-btn {
+  padding: 7px 16px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.record-btn.done-today { background: var(--success); }
+
+/* Date nav */
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px 8px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+.nav-btn {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0 12px;
+  line-height: 1;
+}
+.date-text { font-size: 15px; font-weight: 600; }
+
+/* Time block */
+.block-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--bg);
+}
+.block-item:last-child { border-bottom: none; }
+.time-range { font-size: 12px; color: var(--text2); min-width: 86px; line-height: 1.4; }
+.block-text { flex: 1; font-size: 15px; }
+.block-text.done { text-decoration: line-through; color: var(--text2); }
+
+/* FAB */
+.fab {
+  position: fixed;
+  bottom: 28px; right: 24px;
+  width: 54px; height: 54px;
+  border-radius: 27px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 28px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,122,255,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  line-height: 1;
+}
+
+/* Empty */
+.empty {
+  text-align: center;
+  color: var(--text2);
+  padding: 48px 0;
+}
+.empty-icon { font-size: 44px; margin-bottom: 10px; }
+.empty-text { font-size: 15px; }
+
+/* Modal */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 200;
+  align-items: flex-end;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 20px 36px;
+  width: 100%;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.field { margin-bottom: 14px; }
+.field label { font-size: 13px; color: var(--text2); display: block; margin-bottom: 6px; }
+.field input, .field select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  background: var(--bg);
+  color: var(--text);
+  appearance: none;
+}
+.field input:focus, .field select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.row { display: flex; gap: 10px; }
+.row .field { flex: 1; }
+.modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+.btn-cancel {
+  flex: 1;
+  padding: 13px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: none;
+  font-size: 15px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+.btn-save {
+  flex: 2;
+  padding: 13px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+</style>
+</head>
+<body>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('todo')">待办</button>
+  <button class="tab-btn" onclick="switchTab('habits')">习惯</button>
+  <button class="tab-btn" onclick="switchTab('schedule')">日程</button>
+</div>
+
+<!-- TODO Panel -->
+<div id="panel-todo" class="panel active">
+  <div class="chips" id="chips"></div>
+  <div class="card" id="todo-list"></div>
+</div>
+
+<!-- Habits Panel -->
+<div id="panel-habits" class="panel">
+  <div id="habits-list"></div>
+</div>
+
+<!-- Schedule Panel -->
+<div id="panel-schedule" class="panel">
+  <div class="date-nav">
+    <button class="nav-btn" onclick="changeDate(-1)">‹</button>
+    <span class="date-text" id="date-text"></span>
+    <button class="nav-btn" onclick="changeDate(1)">›</button>
+  </div>
+  <div class="card" id="schedule-list"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="onFab()">＋</button>
+
+<!-- TODO Modal -->
+<div class="overlay" id="m-todo">
+  <div class="modal">
+    <div class="modal-title">新增待办</div>
+    <div class="field">
+      <label>内容</label>
+      <input id="t-text" placeholder="输入待办事项" />
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>分类</label>
+        <select id="t-cat"></select>
+      </div>
+      <div class="field">
+        <label>优先级</label>
+        <select id="t-pri">
+          <option value="normal">普通</option>
+          <option value="high">高</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="close('m-todo')">取消</button>
+      <button class="btn-save" onclick="saveTodo()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Habit Record Modal -->
+<div class="overlay" id="m-record">
+  <div class="modal">
+    <div class="modal-title" id="record-title">记录习惯</div>
+    <div class="field">
+      <label>时长（分钟，可不填）</label>
+      <input id="r-dur" type="number" placeholder="20" inputmode="numeric" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="close('m-record')">取消</button>
+      <button class="btn-save" onclick="saveRecord()">打卡</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Habit Modal -->
+<div class="overlay" id="m-habit">
+  <div class="modal">
+    <div class="modal-title">新增习惯</div>
+    <div class="field">
+      <label>习惯名称</label>
+      <input id="h-name" placeholder="例：日语口语" />
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>目标频率</label>
+        <select id="h-type" onchange="onHabitTypeChange()">
+          <option value="daily">每天</option>
+          <option value="weekly">每周 N 次</option>
+        </select>
+      </div>
+      <div class="field" id="h-count-wrap" style="display:none">
+        <label>每周次数</label>
+        <input id="h-count" type="number" placeholder="3" inputmode="numeric" />
+      </div>
+    </div>
+    <div class="field">
+      <label>每次时长分钟（可不填）</label>
+      <input id="h-dur" type="number" placeholder="20" inputmode="numeric" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="close('m-habit')">取消</button>
+      <button class="btn-save" onclick="saveHabit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="overlay" id="m-schedule">
+  <div class="modal">
+    <div class="modal-title">新增日程</div>
+    <div class="row">
+      <div class="field">
+        <label>开始时间</label>
+        <input id="s-start" type="time" />
+      </div>
+      <div class="field">
+        <label>结束时间</label>
+        <input id="s-end" type="time" />
+      </div>
+    </div>
+    <div class="field">
+      <label>事项</label>
+      <input id="s-text" placeholder="做什么" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="close('m-schedule')">取消</button>
+      <button class="btn-save" onclick="saveBlock()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────
+const DEFAULTS = {
+  categories: ['一场','生活','脱口秀','工作','家务','日语'],
+  todos: [], habits: [], schedules: {}
+};
+function load() {
+  try { return JSON.parse(localStorage.getItem('planner')) || DEFAULTS; }
+  catch { return DEFAULTS; }
+}
+function save() { localStorage.setItem('planner', JSON.stringify(db)); }
+let db = load();
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+function today() { return new Date().toISOString().slice(0,10); }
+function fmtDate(s) {
+  const d = new Date(s + 'T00:00:00');
+  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
+  const isToday = s === today();
+  return `${d.getMonth()+1}月${d.getDate()}日（周${wd}）${isToday ? ' · 今天' : ''}`;
+}
+function weekOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return Array.from({length:7}, (_,i) => {
+    const x = new Date(mon); x.setDate(mon.getDate()+i);
+    return x.toISOString().slice(0,10);
+  });
+}
+
+// ── Tabs ──────────────────────────────────────────
+let tab = 'todo';
+function switchTab(t) {
+  tab = t;
+  const names = ['todo','habits','schedule'];
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', names[i]===t));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+t).classList.add('active');
+  render();
+}
+
+// ── Render ────────────────────────────────────────
+function render() {
+  if (tab==='todo') renderTodo();
+  if (tab==='habits') renderHabits();
+  if (tab==='schedule') renderSchedule();
+}
+
+// ── TODO ──────────────────────────────────────────
+let selCat = '全部';
+function renderTodo() {
+  // chips
+  const allCats = ['全部', ...db.categories];
+  document.getElementById('chips').innerHTML =
+    allCats.map(c => `<button class="chip ${c===selCat?'active':''}" onclick="selCat='${c}';renderTodo()">${c}</button>`).join('') +
+    `<button class="chip" onclick="addCat()">＋分类</button>`;
+
+  let list = db.todos;
+  if (selCat !== '全部') list = list.filter(t => t.category === selCat);
+  const pending = list.filter(t => !t.done);
+  const done    = list.filter(t => t.done);
+
+  const todoEl = document.getElementById('todo-list');
+  if (!pending.length && !done.length) {
+    todoEl.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">暂无待办，点 ＋ 新增</div></div>`;
+    return;
+  }
+
+  let html = '';
+  pending.forEach(t => html += todoHtml(t));
+  if (done.length) {
+    html += `</div><div class="section-label" style="padding:0 16px">已完成 ${done.length} 项</div><div class="card">`;
+    done.forEach(t => html += todoHtml(t));
+  }
+  todoEl.innerHTML = html;
+}
+function todoHtml(t) {
+  const tag = t.priority==='high' ? `<span class="tag tag-high">高优</span>` : '';
+  return `<div class="todo-item">
+    <div class="circle ${t.done?'done':''}" onclick="toggleTodo('${t.id}')"></div>
+    <div class="todo-body">
+      <div class="todo-text ${t.done?'done':''}">${t.text}</div>
+      ${tag ? `<div class="todo-meta">${tag}${t.category}</div>` : `<div class="todo-meta">${t.category}</div>`}
+    </div>
+    <span class="del-btn" onclick="delTodo('${t.id}')">×</span>
+  </div>`;
+}
+function toggleTodo(id) {
+  const t = db.todos.find(t=>t.id===id);
+  if (t) { t.done = !t.done; save(); renderTodo(); }
+}
+function delTodo(id) {
+  db.todos = db.todos.filter(t=>t.id!==id);
+  save(); renderTodo();
+}
+function addCat() {
+  const name = prompt('新分类名称：');
+  if (name && name.trim() && !db.categories.includes(name.trim())) {
+    db.categories.push(name.trim()); save(); renderTodo();
+  }
+}
+function saveTodo() {
+  const text = document.getElementById('t-text').value.trim();
+  if (!text) return;
+  db.todos.unshift({ id:uid(), text, category:document.getElementById('t-cat').value,
+    priority:document.getElementById('t-pri').value, done:false, createdAt:today() });
+  save(); close('m-todo'); renderTodo();
+}
+
+// ── HABITS ────────────────────────────────────────
+let recHabitId = null;
+function renderHabits() {
+  const el = document.getElementById('habits-list');
+  if (!db.habits.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🔥</div><div class="empty-text">还没有习惯，点 ＋ 新增</div></div>`;
+    return;
+  }
+  const todayStr = today();
+  const week = weekOf(todayStr);
+  const labels = ['一','二','三','四','五','六','日'];
+
+  el.innerHTML = db.habits.map(h => {
+    const recorded = new Set((h.records||[]).map(r=>r.date));
+    const weekDone = week.filter(d=>recorded.has(d)).length;
+    const goal = h.goalType==='daily' ? 7 : (h.goalCount||3);
+    const doneToday = recorded.has(todayStr);
+    const goalText = h.goalType==='daily'
+      ? `每天${h.goalDuration?' · '+h.goalDuration+'min/次':''}`
+      : `每周 ${h.goalCount} 次${h.goalDuration?' · '+h.goalDuration+'min/次':''}`;
+
+    const dots = week.map((d,i) => {
+      const done = recorded.has(d);
+      const isToday = d===todayStr;
+      const rec = (h.records||[]).find(r=>r.date===d);
+      const inner = done ? (rec&&rec.duration ? rec.duration : '✓') : '';
+      return `<div class="week-col">
+        <span class="week-label">${labels[i]}</span>
+        <div class="dot ${done?'done':''} ${isToday&&!done?'is-today':''}">${inner}</div>
+      </div>`;
+    }).join('');
+
+    return `<div class="habit-card">
+      <div class="habit-header">
+        <span class="habit-name">${h.name}</span>
+        <span class="del-btn" onclick="delHabit('${h.id}')">×</span>
+      </div>
+      <div class="habit-goal">${goalText}</div>
+      <div class="week-row">${dots}</div>
+      <div class="habit-footer">
+        <span class="habit-progress">本周 <b>${weekDone}</b>/${goal}</span>
+        <button class="record-btn ${doneToday?'done-today':''}" onclick="openRecord('${h.id}')">
+          ${doneToday ? '✓ 已打卡' : '+ 记录'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openRecord(id) {
+  recHabitId = id;
+  const h = db.habits.find(h=>h.id===id);
+  document.getElementById('record-title').textContent = '记录：' + h.name;
+  document.getElementById('r-dur').value = h.goalDuration || '';
+  open('m-record');
+}
+function saveRecord() {
+  const h = db.habits.find(h=>h.id===recHabitId);
+  if (!h) return;
+  if (!h.records) h.records = [];
+  const dur = parseInt(document.getElementById('r-dur').value) || null;
+  const ex = h.records.find(r=>r.date===today());
+  if (ex) ex.duration = dur;
+  else h.records.push({ date:today(), duration:dur });
+  save(); close('m-record'); renderHabits();
+}
+function delHabit(id) {
+  if (!confirm('删除这个习惯？')) return;
+  db.habits = db.habits.filter(h=>h.id!==id);
+  save(); renderHabits();
+}
+function onHabitTypeChange() {
+  const t = document.getElementById('h-type').value;
+  document.getElementById('h-count-wrap').style.display = t==='weekly' ? 'block' : 'none';
+}
+function saveHabit() {
+  const name = document.getElementById('h-name').value.trim();
+  if (!name) return;
+  const goalType = document.getElementById('h-type').value;
+  db.habits.push({ id:uid(), name, goalType,
+    goalCount: goalType==='weekly' ? parseInt(document.getElementById('h-count').value)||3 : null,
+    goalDuration: parseInt(document.getElementById('h-dur').value)||null,
+    records:[] });
+  save(); close('m-habit'); renderHabits();
+}
+
+// ── SCHEDULE ──────────────────────────────────────
+let curDate = today();
+function renderSchedule() {
+  document.getElementById('date-text').textContent = fmtDate(curDate);
+  const blocks = (db.schedules[curDate]||[]).slice().sort((a,b)=>a.start.localeCompare(b.start));
+  const el = document.getElementById('schedule-list');
+  if (!blocks.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><div class="empty-text">今天还没有日程，点 ＋ 新增</div></div>`;
+    return;
+  }
+  el.innerHTML = blocks.map(b => `<div class="block-item">
+    <span class="time-range">${b.start}<br>${b.end}</span>
+    <span class="block-text ${b.done?'done':''}">${b.text}</span>
+    <div class="circle ${b.done?'done':''}" onclick="toggleBlock('${b.id}')"></div>
+    <span class="del-btn" onclick="delBlock('${b.id}')">×</span>
+  </div>`).join('');
+}
+function changeDate(d) {
+  const dt = new Date(curDate+'T00:00:00');
+  dt.setDate(dt.getDate()+d);
+  curDate = dt.toISOString().slice(0,10);
+  renderSchedule();
+}
+function toggleBlock(id) {
+  const b = (db.schedules[curDate]||[]).find(b=>b.id===id);
+  if (b) { b.done=!b.done; save(); renderSchedule(); }
+}
+function delBlock(id) {
+  if (db.schedules[curDate])
+    db.schedules[curDate] = db.schedules[curDate].filter(b=>b.id!==id);
+  save(); renderSchedule();
+}
+function saveBlock() {
+  const start = document.getElementById('s-start').value;
+  const text  = document.getElementById('s-text').value.trim();
+  if (!start || !text) return;
+  if (!db.schedules[curDate]) db.schedules[curDate]=[];
+  db.schedules[curDate].push({ id:uid(), start, end:document.getElementById('s-end').value, text, done:false });
+  save(); close('m-schedule'); renderSchedule();
+}
+
+// ── Modals ────────────────────────────────────────
+function open(id) {
+  document.getElementById(id).classList.add('open');
+  setTimeout(()=>{ const inp=document.querySelector('#'+id+' input'); if(inp) inp.focus(); },150);
+}
+function close(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
+
+function onFab() {
+  if (tab==='todo') {
+    document.getElementById('t-cat').innerHTML = db.categories.map(c=>`<option>${c}</option>`).join('');
+    document.getElementById('t-text').value = '';
+    open('m-todo');
+  } else if (tab==='habits') {
+    document.getElementById('h-name').value='';
+    document.getElementById('h-dur').value='';
+    document.getElementById('h-type').value='daily';
+    document.getElementById('h-count-wrap').style.display='none';
+    open('m-habit');
+  } else {
+    document.getElementById('s-text').value='';
+    document.getElementById('s-start').value='';
+    document.getElementById('s-end').value='';
+    open('m-schedule');
+  }
+}
+
+// ── Init ──────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
