@@ -368,6 +368,23 @@ body {
   background: var(--bg);
   overflow: hidden;
 }
+.picker-type-switch {
+  display: flex;
+  background: var(--card);
+  border-bottom: 0.5px solid var(--border);
+}
+.picker-type-btn {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text2);
+}
+.picker-type-btn.active { color: var(--primary); box-shadow: inset 0 -2px 0 var(--primary); }
 .picker-cats {
   display: flex;
   gap: 6px;
@@ -1095,6 +1112,19 @@ function toggleBlock(id) {
     const todo = db.todos.find(t => t.id === b.linkedTodoId);
     if (todo) todo.done = b.done;
   }
+  if (b.linkedHabitId) {
+    const habit = db.habits.find(h => h.id === b.linkedHabitId);
+    if (habit) {
+      if (!habit.records) habit.records = [];
+      const todayStr = today();
+      if (b.done) {
+        if (!habit.records.find(r => r.date === todayStr))
+          habit.records.push({ date: todayStr, duration: null });
+      } else {
+        habit.records = habit.records.filter(r => r.date !== todayStr);
+      }
+    }
+  }
   save(); renderDayView();
 }
 function delBlock(id) {
@@ -1103,13 +1133,29 @@ function delBlock(id) {
   save(); renderDayView();
 }
 let schedLinkedTodoId = null;
+let schedLinkedHabitId = null;
 let schedPickerCat = null;
+let schedPickerType = 'todo';
 
 function pickTodo(id) {
   const todo = db.todos.find(t => t.id === id);
   if (!todo) return;
-  schedLinkedTodoId = id;
+  schedLinkedTodoId = id; schedLinkedHabitId = null;
   document.getElementById('s-text').value = todo.text;
+  renderTodoPicker();
+}
+
+function pickHabit(id) {
+  const habit = db.habits.find(h => h.id === id);
+  if (!habit) return;
+  schedLinkedHabitId = id; schedLinkedTodoId = null;
+  document.getElementById('s-text').value = habit.name;
+  renderTodoPicker();
+}
+
+function setPickerType(type) {
+  schedPickerType = type;
+  schedPickerCat = null;
   renderTodoPicker();
 }
 
@@ -1119,16 +1165,38 @@ function setPickerCat(cat) {
 }
 
 function populateTodoPicker() {
-  schedLinkedTodoId = null;
-  schedPickerCat = null;
+  schedLinkedTodoId = null; schedLinkedHabitId = null;
+  schedPickerCat = null; schedPickerType = 'todo';
   renderTodoPicker();
 }
 
 function renderTodoPicker() {
-  const pending = db.todos.filter(t => !t.done);
   const el = document.getElementById('s-todo-picker');
+  const typeSwitch = `<div class="picker-type-switch">
+    <button class="picker-type-btn${schedPickerType==='todo'?' active':''}" onclick="setPickerType('todo')">待办</button>
+    <button class="picker-type-btn${schedPickerType==='habit'?' active':''}" onclick="setPickerType('habit')">习惯</button>
+  </div>`;
+
+  if (schedPickerType === 'habit') {
+    if (!db.habits.length) {
+      el.innerHTML = typeSwitch + `<div class="todo-picker-empty">还没有习惯</div>`;
+      return;
+    }
+    const items = db.habits.map(h => {
+      const goal = h.goalType==='daily' ? '每天' : `每周${h.goalCount}次`;
+      return `<div class="todo-picker-item${schedLinkedHabitId===h.id?' selected':''}" onclick="pickHabit('${h.id}')">
+        <span class="picker-dot" style="background:var(--primary)"></span>
+        <span class="picker-label">${h.name}</span>
+        <span style="font-size:12px;color:var(--text2);margin-left:auto">${goal}</span>
+      </div>`;
+    }).join('');
+    el.innerHTML = typeSwitch + `<div class="picker-items">${items}</div>`;
+    return;
+  }
+
+  const pending = db.todos.filter(t => !t.done);
   if (!pending.length) {
-    el.innerHTML = `<div class="todo-picker-empty">没有未完成的待办</div>`;
+    el.innerHTML = typeSwitch + `<div class="todo-picker-empty">没有未完成的待办</div>`;
     return;
   }
   const cats = [...new Set(pending.map(t => t.category))];
@@ -1148,7 +1216,7 @@ function renderTodoPicker() {
       <span class="picker-label">${t.text}</span>
     </div>`;
   }).join('') : `<div class="todo-picker-empty">该分类暂无待办</div>`;
-  el.innerHTML = `<div class="picker-cats">${catChips}</div><div class="picker-items">${items}</div>`;
+  el.innerHTML = typeSwitch + `<div class="picker-cats">${catChips}</div><div class="picker-items">${items}</div>`;
 }
 
 function saveBlock() {
@@ -1158,6 +1226,7 @@ function saveBlock() {
   if (!db.schedules[curDate]) db.schedules[curDate]=[];
   const block = { id:uid(), start, end:document.getElementById('s-end').value, text, done:false };
   if (schedLinkedTodoId) block.linkedTodoId = schedLinkedTodoId;
+  if (schedLinkedHabitId) block.linkedHabitId = schedLinkedHabitId;
   db.schedules[curDate].push(block);
   save(); close('m-schedule'); renderDayView();
 }
