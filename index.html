@@ -26,6 +26,25 @@
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 .settings-btn { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 13px; padding: 0; font-family: inherit; }
 
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 400;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.toast.show { opacity: 1; }
+
 /* View transition */
 #schedule-content { transition: opacity 0.2s; }
 #schedule-content.fading { opacity: 0; }
@@ -368,23 +387,6 @@ body {
   background: var(--bg);
   overflow: hidden;
 }
-.picker-type-switch {
-  display: flex;
-  background: var(--card);
-  border-bottom: 0.5px solid var(--border);
-}
-.picker-type-btn {
-  flex: 1;
-  padding: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--text2);
-}
-.picker-type-btn.active { color: var(--primary); box-shadow: inset 0 -2px 0 var(--primary); }
 .picker-cats {
   display: flex;
   gap: 6px;
@@ -402,6 +404,16 @@ body {
   cursor: pointer;
   font-family: inherit;
   color: var(--text2);
+}
+.habit-chip {
+  background: #e5e5ea;
+  border-color: #e5e5ea;
+  color: #3c3c43;
+}
+.habit-chip.habit-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 .picker-items { max-height: 130px; overflow-y: auto; }
 .todo-picker-item {
@@ -462,6 +474,8 @@ body {
   border-radius: 20px 20px 0 0;
   padding: 20px 20px 36px;
   width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
   animation: slideUp 0.25s ease;
 }
 @keyframes slideUp {
@@ -594,6 +608,9 @@ body {
   </div>
   <div id="schedule-content"></div>
 </div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
 <!-- FAB -->
 <button class="fab" onclick="onFab()">＋</button>
@@ -775,6 +792,14 @@ function save() {
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
 function today() { return new Date().toISOString().slice(0,10); }
 function fmtDate(s) {
   const d = new Date(s + 'T00:00:00');
@@ -1135,7 +1160,6 @@ function delBlock(id) {
 let schedLinkedTodoId = null;
 let schedLinkedHabitId = null;
 let schedPickerCat = null;
-let schedPickerType = 'todo';
 
 function pickTodo(id) {
   const todo = db.todos.find(t => t.id === id);
@@ -1145,84 +1169,75 @@ function pickTodo(id) {
   renderTodoPicker();
 }
 
-function pickHabit(id) {
-  const habit = db.habits.find(h => h.id === id);
-  if (!habit) return;
-  schedLinkedHabitId = id; schedLinkedTodoId = null;
-  document.getElementById('s-text').value = habit.name;
-  renderTodoPicker();
-}
-
-function setPickerType(type) {
-  schedPickerType = type;
-  schedPickerCat = null;
+function selectHabitChip(id) {
+  if (schedLinkedHabitId === id) {
+    schedLinkedHabitId = null;
+    document.getElementById('s-text').value = '';
+  } else {
+    const habit = db.habits.find(h => h.id === id);
+    if (!habit) return;
+    schedLinkedHabitId = id; schedLinkedTodoId = null; schedPickerCat = null;
+    document.getElementById('s-text').value = habit.name;
+  }
   renderTodoPicker();
 }
 
 function setPickerCat(cat) {
   schedPickerCat = schedPickerCat === cat ? null : cat;
+  schedLinkedHabitId = null;
   renderTodoPicker();
 }
 
 function populateTodoPicker() {
-  schedLinkedTodoId = null; schedLinkedHabitId = null;
-  schedPickerCat = null; schedPickerType = 'todo';
+  schedLinkedTodoId = null; schedLinkedHabitId = null; schedPickerCat = null;
   renderTodoPicker();
 }
 
 function renderTodoPicker() {
   const el = document.getElementById('s-todo-picker');
-  const typeSwitch = `<div class="picker-type-switch">
-    <button class="picker-type-btn${schedPickerType==='todo'?' active':''}" onclick="setPickerType('todo')">待办</button>
-    <button class="picker-type-btn${schedPickerType==='habit'?' active':''}" onclick="setPickerType('habit')">习惯</button>
-  </div>`;
-
-  if (schedPickerType === 'habit') {
-    if (!db.habits.length) {
-      el.innerHTML = typeSwitch + `<div class="todo-picker-empty">还没有习惯</div>`;
-      return;
-    }
-    const items = db.habits.map(h => {
-      const goal = h.goalType==='daily' ? '每天' : `每周${h.goalCount}次`;
-      return `<div class="todo-picker-item${schedLinkedHabitId===h.id?' selected':''}" onclick="pickHabit('${h.id}')">
-        <span class="picker-dot" style="background:var(--primary)"></span>
-        <span class="picker-label">${h.name}</span>
-        <span style="font-size:12px;color:var(--text2);margin-left:auto">${goal}</span>
-      </div>`;
-    }).join('');
-    el.innerHTML = typeSwitch + `<div class="picker-items">${items}</div>`;
-    return;
-  }
-
   const pending = db.todos.filter(t => !t.done);
-  if (!pending.length) {
-    el.innerHTML = typeSwitch + `<div class="todo-picker-empty">没有未完成的待办</div>`;
-    return;
-  }
-  const cats = [...new Set(pending.map(t => t.category))];
-  const catChips = cats.map(c => {
+
+  const catChips = [...new Set(pending.map(t => t.category))].map(c => {
     const color = colorOf(c);
     const active = schedPickerCat === c;
-    const style = active
-      ? `background:${color};border-color:${color};color:#fff`
-      : `border-color:${color};color:${color}`;
+    const style = active ? `background:${color};border-color:${color};color:#fff` : `border-color:${color};color:${color}`;
     return `<button class="picker-cat-chip" style="${style}" onclick="setPickerCat('${c}')">${c}</button>`;
   }).join('');
-  const filtered = schedPickerCat ? pending.filter(t => t.category === schedPickerCat) : pending;
-  const items = filtered.length ? filtered.map(t => {
-    const color = colorOf(t.category);
-    return `<div class="todo-picker-item${schedLinkedTodoId===t.id?' selected':''}" onclick="pickTodo('${t.id}')">
-      <span class="picker-dot" style="background:${color}"></span>
-      <span class="picker-label">${t.text}</span>
-    </div>`;
-  }).join('') : `<div class="todo-picker-empty">该分类暂无待办</div>`;
-  el.innerHTML = typeSwitch + `<div class="picker-cats">${catChips}</div><div class="picker-items">${items}</div>`;
+
+  const habitChips = db.habits.map(h =>
+    `<button class="picker-cat-chip habit-chip${schedLinkedHabitId===h.id?' habit-active':''}" onclick="selectHabitChip('${h.id}')">${h.name}</button>`
+  ).join('');
+
+  const chipsRow = (catChips || habitChips)
+    ? `<div class="picker-cats">${catChips}${habitChips}</div>` : '';
+
+  let itemsHtml = '';
+  if (!schedLinkedHabitId) {
+    const filtered = schedPickerCat ? pending.filter(t => t.category === schedPickerCat) : pending;
+    if (filtered.length) {
+      itemsHtml = `<div class="picker-items">${filtered.map(t => {
+        const color = colorOf(t.category);
+        return `<div class="todo-picker-item${schedLinkedTodoId===t.id?' selected':''}" onclick="pickTodo('${t.id}')">
+          <span class="picker-dot" style="background:${color}"></span>
+          <span class="picker-label">${t.text}</span>
+        </div>`;
+      }).join('')}</div>`;
+    } else {
+      itemsHtml = `<div class="todo-picker-empty">${schedPickerCat?'该分类暂无待办':'没有未完成的待办'}</div>`;
+    }
+  }
+
+  el.innerHTML = chipsRow + itemsHtml;
 }
 
 function saveBlock() {
   const start = document.getElementById('s-start').value;
   const text  = document.getElementById('s-text').value.trim();
-  if (!start||!text) return;
+  if (!start || !text) {
+    const msg = !start && !text ? '请填写开始时间和事项' : !start ? '请填写开始时间' : '请填写事项';
+    showToast(msg);
+    return;
+  }
   if (!db.schedules[curDate]) db.schedules[curDate]=[];
   const block = { id:uid(), start, end:document.getElementById('s-end').value, text, done:false };
   if (schedLinkedTodoId) block.linkedTodoId = schedLinkedTodoId;
