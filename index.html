@@ -363,12 +363,30 @@ body {
 
 /* Todo picker in schedule modal */
 .todo-picker-list {
-  max-height: 150px;
-  overflow-y: auto;
   border: 1.5px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
+  overflow: hidden;
 }
+.picker-cats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--card);
+}
+.picker-cat-chip {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  border: 1.5px solid var(--border);
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text2);
+}
+.picker-items { max-height: 130px; overflow-y: auto; }
 .todo-picker-item {
   display: flex;
   align-items: center;
@@ -1085,32 +1103,52 @@ function delBlock(id) {
   save(); renderDayView();
 }
 let schedLinkedTodoId = null;
+let schedPickerCat = null;
 
 function pickTodo(id) {
   const todo = db.todos.find(t => t.id === id);
   if (!todo) return;
   schedLinkedTodoId = id;
   document.getElementById('s-text').value = todo.text;
-  document.querySelectorAll('.todo-picker-item').forEach(el => {
-    el.classList.toggle('selected', el.dataset.id === id);
-  });
+  renderTodoPicker();
+}
+
+function setPickerCat(cat) {
+  schedPickerCat = schedPickerCat === cat ? null : cat;
+  renderTodoPicker();
 }
 
 function populateTodoPicker() {
   schedLinkedTodoId = null;
+  schedPickerCat = null;
+  renderTodoPicker();
+}
+
+function renderTodoPicker() {
   const pending = db.todos.filter(t => !t.done);
   const el = document.getElementById('s-todo-picker');
   if (!pending.length) {
     el.innerHTML = `<div class="todo-picker-empty">没有未完成的待办</div>`;
     return;
   }
-  el.innerHTML = pending.map(t => {
+  const cats = [...new Set(pending.map(t => t.category))];
+  const catChips = cats.map(c => {
+    const color = colorOf(c);
+    const active = schedPickerCat === c;
+    const style = active
+      ? `background:${color};border-color:${color};color:#fff`
+      : `border-color:${color};color:${color}`;
+    return `<button class="picker-cat-chip" style="${style}" onclick="setPickerCat('${c}')">${c}</button>`;
+  }).join('');
+  const filtered = schedPickerCat ? pending.filter(t => t.category === schedPickerCat) : pending;
+  const items = filtered.length ? filtered.map(t => {
     const color = colorOf(t.category);
-    return `<div class="todo-picker-item" data-id="${t.id}" onclick="pickTodo('${t.id}')">
+    return `<div class="todo-picker-item${schedLinkedTodoId===t.id?' selected':''}" onclick="pickTodo('${t.id}')">
       <span class="picker-dot" style="background:${color}"></span>
       <span class="picker-label">${t.text}</span>
     </div>`;
-  }).join('');
+  }).join('') : `<div class="todo-picker-empty">该分类暂无待办</div>`;
+  el.innerHTML = `<div class="picker-cats">${catChips}</div><div class="picker-items">${items}</div>`;
 }
 
 function saveBlock() {
