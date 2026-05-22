@@ -645,8 +645,10 @@ body {
 const REPO  = 'nnezhxw/planner-data';
 const FILE  = 'data.json';
 const API   = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
+const PALETTE = ['#ff3b30','#ff9500','#34c759','#007aff','#af52de','#ff2d55','#00c7be','#ff9f0a'];
 const DEFAULTS = {
   categories: ['一场','生活','脱口秀','工作','家务','日语'],
+  categoryColors: {},
   todos: [], habits: [], schedules: {}
 };
 
@@ -747,13 +749,36 @@ function render() {
   if (tab==='schedule') renderSchedule();
 }
 
+// ── Category colors ───────────────────────────────
+function colorOf(cat) {
+  return (db.categoryColors && db.categoryColors[cat]) || '#8e8e93';
+}
+function ensureCategoryColors() {
+  if (!db.categoryColors) db.categoryColors = {};
+  db.categories.forEach(cat => {
+    if (!db.categoryColors[cat]) {
+      const used = new Set(Object.values(db.categoryColors));
+      db.categoryColors[cat] = PALETTE.find(c => !used.has(c)) || PALETTE[Object.keys(db.categoryColors).length % PALETTE.length];
+    }
+  });
+}
+
 // ── TODO ──────────────────────────────────────────
 let selCat = '全部';
 function renderTodo() {
+  ensureCategoryColors();
   // chips
   const allCats = ['全部', ...db.categories];
   document.getElementById('chips').innerHTML =
-    allCats.map(c => `<button class="chip ${c===selCat?'active':''}" onclick="selCat='${c}';renderTodo()">${c}</button>`).join('') +
+    allCats.map(c => {
+      if (c === '全部') return `<button class="chip ${selCat==='全部'?'active':''}" onclick="selCat='全部';renderTodo()">全部</button>`;
+      const color = colorOf(c);
+      const active = selCat === c;
+      const style = active
+        ? `background:${color};border-color:${color};color:#fff`
+        : `border-color:${color};color:${color}`;
+      return `<button class="chip" style="${style}" onclick="selCat='${c}';renderTodo()">${c}</button>`;
+    }).join('') +
     `<button class="chip" onclick="addCat()">＋分类</button>`;
 
   let list = db.todos;
@@ -777,11 +802,13 @@ function renderTodo() {
 }
 function todoHtml(t) {
   const tag = t.priority==='high' ? `<span class="tag tag-high">高优</span>` : '';
+  const color = colorOf(t.category);
+  const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};vertical-align:middle;margin-right:4px"></span>`;
   return `<div class="todo-item">
     <div class="circle ${t.done?'done':''}" onclick="toggleTodo('${t.id}')"></div>
     <div class="todo-body">
       <div class="todo-text ${t.done?'done':''}">${t.text}</div>
-      ${tag ? `<div class="todo-meta">${tag}${t.category}</div>` : `<div class="todo-meta">${t.category}</div>`}
+      <div class="todo-meta">${tag}${dot}${t.category}</div>
     </div>
     <span class="del-btn" onclick="delTodo('${t.id}')">×</span>
   </div>`;
@@ -797,7 +824,9 @@ function delTodo(id) {
 function addCat() {
   const name = prompt('新分类名称：');
   if (name && name.trim() && !db.categories.includes(name.trim())) {
-    db.categories.push(name.trim()); save(); renderTodo();
+    db.categories.push(name.trim());
+    ensureCategoryColors();
+    save(); renderTodo();
   }
 }
 function saveTodo() {
