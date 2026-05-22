@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Planner</title>
@@ -26,10 +26,28 @@
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 .settings-btn { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 13px; padding: 0; font-family: inherit; }
 
-/* View tabs */
-.view-tabs { display: flex; background: var(--card); border-radius: 10px; padding: 3px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
-.view-tab { flex: 1; padding: 7px; border: none; border-radius: 8px; background: none; font-size: 14px; font-family: inherit; color: var(--text2); cursor: pointer; }
-.view-tab.active { background: var(--primary); color: white; font-weight: 600; }
+/* Pinch hint toast */
+.pinch-hint {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.72);
+  color: white;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 180;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.pinch-hint.show { opacity: 1; }
+
+/* View transition */
+#schedule-content { transition: opacity 0.2s; }
+#schedule-content.fading { opacity: 0; }
 
 /* Week view */
 .week-grid { display: flex; gap: 3px; background: var(--card); border-radius: 12px; padding: 12px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
@@ -493,11 +511,6 @@ body {
 
 <!-- Schedule Panel -->
 <div id="panel-schedule" class="panel">
-  <div class="view-tabs">
-    <button class="view-tab active" onclick="switchSchedView('day')">日</button>
-    <button class="view-tab" onclick="switchSchedView('week')">周</button>
-    <button class="view-tab" onclick="switchSchedView('month')">月</button>
-  </div>
   <div class="date-nav">
     <button class="nav-btn" onclick="navSchedule(-1)">‹</button>
     <span class="date-text" id="date-text"></span>
@@ -505,6 +518,9 @@ body {
   </div>
   <div id="schedule-content"></div>
 </div>
+
+<!-- Pinch hint -->
+<div class="pinch-hint" id="pinch-hint"></div>
 
 <!-- FAB -->
 <button class="fab" onclick="onFab()">＋</button>
@@ -868,17 +884,16 @@ let schedView = 'day';
 
 function switchSchedView(v) {
   schedView = v;
-  document.querySelectorAll('.view-tab').forEach((b,i) =>
-    b.classList.toggle('active', ['day','week','month'][i] === v));
   document.querySelector('.fab').style.display = v === 'day' ? 'flex' : 'none';
-  renderSchedule();
+  const el = document.getElementById('schedule-content');
+  el.classList.add('fading');
+  setTimeout(() => { el.classList.remove('fading'); renderSchedule(); }, 150);
 }
 
 function navSchedule(d) {
   const dt = new Date(curDate+'T00:00:00');
-  if (schedView==='day')        dt.setDate(dt.getDate()+d);
-  else if (schedView==='week')  dt.setDate(dt.getDate()+d*7);
-  else                          dt.setMonth(dt.getMonth()+d);
+  if (schedView==='day') dt.setDate(dt.getDate()+d);
+  else                   dt.setMonth(dt.getMonth()+d);
   curDate = dt.toISOString().slice(0,10);
   renderSchedule();
 }
@@ -887,6 +902,61 @@ function gotoDay(date) {
   curDate = date;
   switchSchedView('day');
 }
+
+// ── Pinch gesture ─────────────────────────────────
+(function() {
+  const panel = document.getElementById('panel-schedule');
+  const hint  = document.getElementById('pinch-hint');
+  let startDist = 0, hintTimer = null;
+
+  function showHint(text) {
+    hint.textContent = text;
+    hint.classList.add('show');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => hint.classList.remove('show'), 2000);
+  }
+
+  function dist(e) {
+    return Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
+
+  panel.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { startDist = dist(e); e.preventDefault(); }
+  }, { passive: false });
+
+  panel.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) e.preventDefault();
+  }, { passive: false });
+
+  panel.addEventListener('touchend', e => {
+    if (!startDist) return;
+    const endDist = e.changedTouches.length ? dist({ touches: [
+      e.changedTouches[0] || e.touches[0],
+      e.changedTouches[1] || e.touches[1]
+    ]}) : startDist;
+    const scale = endDist / startDist;
+    startDist = 0;
+    if (scale < 0.75 && schedView === 'day') {
+      switchSchedView('month');
+      showHint('📅 月视图  · 双指张开返回');
+    } else if (scale > 1.35 && schedView === 'month') {
+      switchSchedView('day');
+      showHint('🗓 日视图  · 双指捏合返回');
+    }
+  }, { passive: false });
+
+  // Show hint on first visit to schedule tab
+  const HINT_KEY = 'planner_hint_shown';
+  document.querySelectorAll('.tab-btn')[2].addEventListener('click', () => {
+    if (!localStorage.getItem(HINT_KEY)) {
+      setTimeout(() => showHint('双指捏合 → 月视图'), 600);
+      localStorage.setItem(HINT_KEY, '1');
+    }
+  });
+})();
 
 function renderSchedule() {
   if (schedView==='day')        renderDayView();
