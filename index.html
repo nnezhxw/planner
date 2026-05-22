@@ -361,6 +361,29 @@ body {
 .block-text { flex: 1; font-size: 15px; }
 .block-text.done { text-decoration: line-through; color: var(--text2); }
 
+/* Todo picker in schedule modal */
+.todo-picker-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.todo-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-bottom: 0.5px solid var(--border);
+  cursor: pointer;
+}
+.todo-picker-item:last-child { border-bottom: none; }
+.todo-picker-item.selected { background: rgba(0,122,255,0.08); }
+.todo-picker-item .picker-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.todo-picker-item.selected .picker-label { color: var(--primary); font-weight: 500; }
+.todo-picker-empty { padding: 12px; font-size: 13px; color: var(--text2); text-align: center; }
+
 /* FAB */
 .fab {
   position: fixed;
@@ -632,6 +655,10 @@ body {
     <div class="field">
       <label>事项</label>
       <input id="s-text" placeholder="做什么" />
+    </div>
+    <div class="field" id="s-picker-wrap">
+      <label>从待办中选（可选）</label>
+      <div class="todo-picker-list" id="s-todo-picker"></div>
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="close('m-schedule')">取消</button>
@@ -1044,19 +1071,56 @@ function renderYearView() {
 
 function toggleBlock(id) {
   const b = (db.schedules[curDate]||[]).find(b=>b.id===id);
-  if (b) { b.done=!b.done; save(); renderDayView(); }
+  if (!b) return;
+  b.done = !b.done;
+  if (b.linkedTodoId) {
+    const todo = db.todos.find(t => t.id === b.linkedTodoId);
+    if (todo) todo.done = b.done;
+  }
+  save(); renderDayView();
 }
 function delBlock(id) {
   if (db.schedules[curDate])
     db.schedules[curDate] = db.schedules[curDate].filter(b=>b.id!==id);
   save(); renderDayView();
 }
+let schedLinkedTodoId = null;
+
+function pickTodo(id) {
+  const todo = db.todos.find(t => t.id === id);
+  if (!todo) return;
+  schedLinkedTodoId = id;
+  document.getElementById('s-text').value = todo.text;
+  document.querySelectorAll('.todo-picker-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+}
+
+function populateTodoPicker() {
+  schedLinkedTodoId = null;
+  const pending = db.todos.filter(t => !t.done);
+  const el = document.getElementById('s-todo-picker');
+  if (!pending.length) {
+    el.innerHTML = `<div class="todo-picker-empty">没有未完成的待办</div>`;
+    return;
+  }
+  el.innerHTML = pending.map(t => {
+    const color = colorOf(t.category);
+    return `<div class="todo-picker-item" data-id="${t.id}" onclick="pickTodo('${t.id}')">
+      <span class="picker-dot" style="background:${color}"></span>
+      <span class="picker-label">${t.text}</span>
+    </div>`;
+  }).join('');
+}
+
 function saveBlock() {
   const start = document.getElementById('s-start').value;
   const text  = document.getElementById('s-text').value.trim();
   if (!start||!text) return;
   if (!db.schedules[curDate]) db.schedules[curDate]=[];
-  db.schedules[curDate].push({ id:uid(), start, end:document.getElementById('s-end').value, text, done:false });
+  const block = { id:uid(), start, end:document.getElementById('s-end').value, text, done:false };
+  if (schedLinkedTodoId) block.linkedTodoId = schedLinkedTodoId;
+  db.schedules[curDate].push(block);
   save(); close('m-schedule'); renderDayView();
 }
 
@@ -1083,6 +1147,7 @@ function onFab() {
     document.getElementById('s-text').value='';
     document.getElementById('s-start').value='';
     document.getElementById('s-end').value='';
+    populateTodoPicker();
     open('m-schedule');
   }
 }
