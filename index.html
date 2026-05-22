@@ -580,7 +580,7 @@ async function loadFromGitHub() {
     if (!res.ok) throw new Error(res.status);
     const json = await res.json();
     fileSha = json.sha;
-    db = JSON.parse(atob(json.content.replace(/\n/g, '')));
+    db = JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g, '')))));
     localStorage.setItem('planner_cache', JSON.stringify(db));
     setSyncStatus('ok', '已同步');
   } catch (e) {
@@ -878,7 +878,7 @@ async function setupToken() {
     localStorage.setItem('planner_token', t);
     const json = await res.json();
     fileSha = json.sha;
-    db = JSON.parse(atob(json.content.replace(/\n/g, '')));
+    db = JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g, '')))));
     localStorage.setItem('planner_cache', JSON.stringify(db));
     document.getElementById('setup-screen').classList.remove('show');
     setSyncStatus('ok', '已同步');
