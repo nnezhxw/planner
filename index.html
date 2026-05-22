@@ -7,6 +7,41 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Planner</title>
 <style>
+/* Sync bar */
+.sync-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 16px;
+  background: rgba(255,255,255,0.95);
+  border-bottom: 0.5px solid var(--border);
+  font-size: 12px;
+  color: var(--text2);
+  min-height: 28px;
+}
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.sync-dot.ok { background: #34c759; }
+.sync-dot.ing { background: #007aff; animation: pulse 1s infinite; }
+.sync-dot.err { background: #ff3b30; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.settings-btn { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 13px; padding: 0; font-family: inherit; }
+
+/* Token setup screen */
+.setup-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 300;
+  padding: 48px 24px;
+  flex-direction: column;
+}
+.setup-screen.show { display: flex; }
+.setup-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.setup-desc { font-size: 14px; color: var(--text2); line-height: 1.6; margin-bottom: 28px; }
+.setup-desc a { color: var(--primary); }
+</style>
+<style>
 :root {
   --primary: #007aff;
   --success: #34c759;
@@ -341,11 +376,48 @@ body {
 </head>
 <body>
 
+<!-- Token setup screen -->
+<div class="setup-screen" id="setup-screen">
+  <div class="setup-title">欢迎使用 Planner</div>
+  <div class="setup-desc">
+    首次使用需要输入 GitHub Token 来同步数据。<br><br>
+    获取方式：GitHub → Settings → Developer settings →
+    Personal access tokens → Tokens (classic) → 勾选 <b>repo</b> → 生成
+  </div>
+  <div class="field">
+    <label>GitHub Token</label>
+    <input id="setup-token" placeholder="ghp_xxxxxxxxxxxx" style="font-size:13px" />
+  </div>
+  <button class="btn-save" style="margin-top:16px" onclick="setupToken()">开始使用</button>
+  <div id="setup-err" style="color:#ff3b30;font-size:13px;margin-top:12px;display:none"></div>
+</div>
+
 <!-- Tab bar -->
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('todo')">待办</button>
   <button class="tab-btn" onclick="switchTab('habits')">习惯</button>
   <button class="tab-btn" onclick="switchTab('schedule')">日程</button>
+</div>
+
+<!-- Sync status bar -->
+<div class="sync-bar">
+  <span id="sync-status"><span class="sync-dot ok"></span>已同步</span>
+  <button class="settings-btn" onclick="openSettings()">⚙ 设置</button>
+</div>
+
+<!-- Settings Modal -->
+<div class="overlay" id="m-settings">
+  <div class="modal">
+    <div class="modal-title">设置</div>
+    <div class="field">
+      <label>GitHub Token</label>
+      <input id="cfg-token" placeholder="ghp_xxxxxxxxxxxx" style="font-size:13px" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="close('m-settings')">取消</button>
+      <button class="btn-save" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
 </div>
 
 <!-- TODO Panel -->
@@ -473,17 +545,74 @@ body {
 </div>
 
 <script>
-// ── Data ──────────────────────────────────────────
+// ── Config ────────────────────────────────────────
+const REPO  = 'nnezhxw/planner-data';
+const FILE  = 'data.json';
+const API   = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
 const DEFAULTS = {
   categories: ['一场','生活','脱口秀','工作','家务','日语'],
   todos: [], habits: [], schedules: {}
 };
-function load() {
-  try { return JSON.parse(localStorage.getItem('planner')) || DEFAULTS; }
-  catch { return DEFAULTS; }
+
+let db = { ...DEFAULTS };
+let fileSha = null;
+let saveTimer = null;
+let token = () => localStorage.getItem('planner_token') || '';
+
+// ── Sync status ───────────────────────────────────
+function setSyncStatus(state, text) {
+  const el = document.getElementById('sync-status');
+  el.innerHTML = `<span class="sync-dot ${state}"></span>${text}`;
 }
-function save() { localStorage.setItem('planner', JSON.stringify(db)); }
-let db = load();
+
+// ── GitHub API ────────────────────────────────────
+async function ghFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: { Authorization: `token ${token()}`, 'Content-Type': 'application/json', ...opts.headers }
+  });
+}
+
+async function loadFromGitHub() {
+  setSyncStatus('ing', '同步中...');
+  try {
+    const res = await ghFetch(API);
+    if (!res.ok) throw new Error(res.status);
+    const json = await res.json();
+    fileSha = json.sha;
+    db = JSON.parse(atob(json.content.replace(/\n/g, '')));
+    localStorage.setItem('planner_cache', JSON.stringify(db));
+    setSyncStatus('ok', '已同步');
+  } catch (e) {
+    // fall back to cache
+    const cache = localStorage.getItem('planner_cache');
+    if (cache) { db = JSON.parse(cache); setSyncStatus('err', '离线 · 使用缓存'); }
+    else { db = { ...DEFAULTS }; setSyncStatus('err', '无法连接'); }
+  }
+  render();
+}
+
+async function saveToGitHub() {
+  setSyncStatus('ing', '同步中...');
+  try {
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(db, null, 2))));
+    const body = { message: 'update data', content, ...(fileSha ? { sha: fileSha } : {}) };
+    const res = await ghFetch(API, { method: 'PUT', body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(res.status);
+    const json = await res.json();
+    fileSha = json.content.sha;
+    localStorage.setItem('planner_cache', JSON.stringify(db));
+    setSyncStatus('ok', '已同步');
+  } catch (e) {
+    localStorage.setItem('planner_cache', JSON.stringify(db));
+    setSyncStatus('err', '同步失败 · 已缓存');
+  }
+}
+
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToGitHub, 800);
+}
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
 function today() { return new Date().toISOString().slice(0,10); }
@@ -736,8 +865,49 @@ function onFab() {
   }
 }
 
+// ── Token setup ───────────────────────────────────
+async function setupToken() {
+  const t = document.getElementById('setup-token').value.trim();
+  if (!t) return;
+  const errEl = document.getElementById('setup-err');
+  errEl.style.display = 'none';
+  setSyncStatus('ing', '验证中...');
+  try {
+    const res = await fetch(API, { headers: { Authorization: `token ${t}` } });
+    if (!res.ok) throw new Error();
+    localStorage.setItem('planner_token', t);
+    const json = await res.json();
+    fileSha = json.sha;
+    db = JSON.parse(atob(json.content.replace(/\n/g, '')));
+    localStorage.setItem('planner_cache', JSON.stringify(db));
+    document.getElementById('setup-screen').classList.remove('show');
+    setSyncStatus('ok', '已同步');
+    render();
+  } catch {
+    errEl.textContent = 'Token 无效或无法连接，请检查后重试';
+    errEl.style.display = 'block';
+    setSyncStatus('err', '验证失败');
+  }
+}
+
+function openSettings() {
+  document.getElementById('cfg-token').value = token();
+  open('m-settings');
+}
+function saveSettings() {
+  const t = document.getElementById('cfg-token').value.trim();
+  if (t) { localStorage.setItem('planner_token', t); }
+  close('m-settings');
+  loadFromGitHub();
+}
+
 // ── Init ──────────────────────────────────────────
-render();
+if (!token()) {
+  document.getElementById('setup-screen').classList.add('show');
+  setSyncStatus('err', '未设置 Token');
+} else {
+  loadFromGitHub();
+}
 </script>
 </body>
 </html>
