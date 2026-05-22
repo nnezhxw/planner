@@ -55,6 +55,31 @@
 .month-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); margin-top: 1px; visibility: hidden; }
 .month-dot.show { visibility: visible; }
 
+/* Pull to refresh */
+.ptr-indicator {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  z-index: 150;
+  transition: height 0.1s;
+  font-size: 13px;
+  color: var(--text2);
+}
+.ptr-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Token setup screen */
 .setup-screen {
   display: none;
@@ -404,6 +429,12 @@ body {
 </style>
 </head>
 <body>
+
+<!-- Pull to refresh indicator -->
+<div class="ptr-indicator" id="ptr">
+  <div class="ptr-spinner"></div>
+  <span id="ptr-text">下拉刷新</span>
+</div>
 
 <!-- Token setup screen -->
 <div class="setup-screen" id="setup-screen">
@@ -973,6 +1004,45 @@ function onFab() {
     open('m-schedule');
   }
 }
+
+// ── Pull to refresh ───────────────────────────────
+(function() {
+  const PTR_THRESHOLD = 70;
+  let startY = 0, currentY = 0, active = false, refreshing = false;
+  const ptr = document.getElementById('ptr');
+  const ptrText = document.getElementById('ptr-text');
+
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY === 0 && !refreshing) {
+      startY = e.touches[0].clientY;
+      active = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!active) return;
+    currentY = e.touches[0].clientY;
+    const delta = Math.min(currentY - startY, PTR_THRESHOLD * 1.5);
+    if (delta > 0) {
+      ptr.style.height = Math.min(delta * 0.5, 44) + 'px';
+      ptrText.textContent = delta > PTR_THRESHOLD ? '松开刷新' : '下拉刷新';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', async () => {
+    if (!active) return;
+    active = false;
+    const delta = currentY - startY;
+    if (delta > PTR_THRESHOLD && !refreshing) {
+      refreshing = true;
+      ptr.style.height = '44px';
+      ptrText.textContent = '刷新中...';
+      await loadFromGitHub();
+      refreshing = false;
+    }
+    ptr.style.height = '0';
+  });
+})();
 
 // ── Token setup ───────────────────────────────────
 async function setupToken() {
