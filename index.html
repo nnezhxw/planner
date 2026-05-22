@@ -26,6 +26,35 @@
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 .settings-btn { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 13px; padding: 0; font-family: inherit; }
 
+/* View tabs */
+.view-tabs { display: flex; background: var(--card); border-radius: 10px; padding: 3px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+.view-tab { flex: 1; padding: 7px; border: none; border-radius: 8px; background: none; font-size: 14px; font-family: inherit; color: var(--text2); cursor: pointer; }
+.view-tab.active { background: var(--primary); color: white; font-weight: 600; }
+
+/* Week view */
+.week-grid { display: flex; gap: 3px; background: var(--card); border-radius: 12px; padding: 12px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+.week-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; min-width: 0; }
+.wdh-label { font-size: 11px; color: var(--text2); }
+.wdh-date { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; }
+.wdh-date.is-today { background: var(--primary); color: white; }
+.week-blocks { width: 100%; display: flex; flex-direction: column; gap: 2px; }
+.week-chip { background: #e8f0fe; color: #1a56db; border-radius: 3px; padding: 2px 3px; font-size: 9px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+.week-chip.done { background: var(--bg); color: var(--text2); }
+.week-hint { margin-top: 10px; font-size: 12px; color: var(--text2); text-align: center; }
+
+/* Month view */
+.month-grid { background: var(--card); border-radius: 12px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+.month-weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 4px; }
+.month-weekday { text-align: center; font-size: 11px; color: var(--text2); padding: 4px 0; }
+.month-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 1px; }
+.month-day { display: flex; flex-direction: column; align-items: center; padding: 4px 0; cursor: pointer; border-radius: 8px; }
+.month-day:active { background: var(--bg); }
+.month-num { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 14px; }
+.month-num.is-today { background: var(--primary); color: white; font-weight: 600; }
+.month-num.other-month { color: var(--border); }
+.month-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); margin-top: 1px; visibility: hidden; }
+.month-dot.show { visibility: visible; }
+
 /* Token setup screen */
 .setup-screen {
   display: none;
@@ -433,12 +462,17 @@ body {
 
 <!-- Schedule Panel -->
 <div id="panel-schedule" class="panel">
-  <div class="date-nav">
-    <button class="nav-btn" onclick="changeDate(-1)">‹</button>
-    <span class="date-text" id="date-text"></span>
-    <button class="nav-btn" onclick="changeDate(1)">›</button>
+  <div class="view-tabs">
+    <button class="view-tab active" onclick="switchSchedView('day')">日</button>
+    <button class="view-tab" onclick="switchSchedView('week')">周</button>
+    <button class="view-tab" onclick="switchSchedView('month')">月</button>
   </div>
-  <div class="card" id="schedule-list"></div>
+  <div class="date-nav">
+    <button class="nav-btn" onclick="navSchedule(-1)">‹</button>
+    <span class="date-text" id="date-text"></span>
+    <button class="nav-btn" onclick="navSchedule(1)">›</button>
+  </div>
+  <div id="schedule-content"></div>
 </div>
 
 <!-- FAB -->
@@ -799,43 +833,118 @@ function saveHabit() {
 
 // ── SCHEDULE ──────────────────────────────────────
 let curDate = today();
-function renderSchedule() {
-  document.getElementById('date-text').textContent = fmtDate(curDate);
-  const blocks = (db.schedules[curDate]||[]).slice().sort((a,b)=>a.start.localeCompare(b.start));
-  const el = document.getElementById('schedule-list');
-  if (!blocks.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><div class="empty-text">今天还没有日程，点 ＋ 新增</div></div>`;
-    return;
-  }
-  el.innerHTML = blocks.map(b => `<div class="block-item">
-    <span class="time-range">${b.start}<br>${b.end}</span>
-    <span class="block-text ${b.done?'done':''}">${b.text}</span>
-    <div class="circle ${b.done?'done':''}" onclick="toggleBlock('${b.id}')"></div>
-    <span class="del-btn" onclick="delBlock('${b.id}')">×</span>
-  </div>`).join('');
+let schedView = 'day';
+
+function switchSchedView(v) {
+  schedView = v;
+  document.querySelectorAll('.view-tab').forEach((b,i) =>
+    b.classList.toggle('active', ['day','week','month'][i] === v));
+  document.querySelector('.fab').style.display = v === 'day' ? 'flex' : 'none';
+  renderSchedule();
 }
-function changeDate(d) {
+
+function navSchedule(d) {
   const dt = new Date(curDate+'T00:00:00');
-  dt.setDate(dt.getDate()+d);
+  if (schedView==='day')        dt.setDate(dt.getDate()+d);
+  else if (schedView==='week')  dt.setDate(dt.getDate()+d*7);
+  else                          dt.setMonth(dt.getMonth()+d);
   curDate = dt.toISOString().slice(0,10);
   renderSchedule();
 }
+
+function gotoDay(date) {
+  curDate = date;
+  switchSchedView('day');
+}
+
+function renderSchedule() {
+  if (schedView==='day')        renderDayView();
+  else if (schedView==='week')  renderWeekView();
+  else                          renderMonthView();
+}
+
+function renderDayView() {
+  document.getElementById('date-text').textContent = fmtDate(curDate);
+  const blocks = (db.schedules[curDate]||[]).slice().sort((a,b)=>a.start.localeCompare(b.start));
+  const el = document.getElementById('schedule-content');
+  if (!blocks.length) {
+    el.innerHTML = `<div class="card"><div class="empty"><div class="empty-icon">📅</div><div class="empty-text">今天还没有日程，点 ＋ 新增</div></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card">${blocks.map(b=>`<div class="block-item">
+    <span class="time-range">${b.start}<br>${b.end||''}</span>
+    <span class="block-text ${b.done?'done':''}">${b.text}</span>
+    <div class="circle ${b.done?'done':''}" onclick="toggleBlock('${b.id}')"></div>
+    <span class="del-btn" onclick="delBlock('${b.id}')">×</span>
+  </div>`).join('')}</div>`;
+}
+
+function renderWeekView() {
+  const week = weekOf(curDate);
+  const labels = ['一','二','三','四','五','六','日'];
+  const todayStr = today();
+  const s = new Date(week[0]+'T00:00:00'), e = new Date(week[6]+'T00:00:00');
+  document.getElementById('date-text').textContent =
+    `${s.getMonth()+1}/${s.getDate()} – ${e.getMonth()+1}/${e.getDate()}`;
+
+  const cols = week.map((d,i) => {
+    const blocks = (db.schedules[d]||[]).slice().sort((a,b)=>a.start.localeCompare(b.start));
+    const dt = new Date(d+'T00:00:00');
+    const chips = blocks.slice(0,4).map(b=>
+      `<div class="week-chip ${b.done?'done':''}">${b.start} ${b.text}</div>`).join('');
+    const more = blocks.length>4 ? `<div style="font-size:9px;color:var(--text2);text-align:center">+${blocks.length-4}</div>` : '';
+    return `<div class="week-col" onclick="gotoDay('${d}')">
+      <span class="wdh-label">${labels[i]}</span>
+      <div class="wdh-date ${d===todayStr?'is-today':''}">${dt.getDate()}</div>
+      <div class="week-blocks">${chips}${more}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('schedule-content').innerHTML =
+    `<div class="week-grid">${cols}</div><div class="week-hint">点击某天查看详情</div>`;
+}
+
+function renderMonthView() {
+  const dt = new Date(curDate+'T00:00:00');
+  const year = dt.getFullYear(), month = dt.getMonth();
+  const todayStr = today();
+  document.getElementById('date-text').textContent = `${year}年${month+1}月`;
+
+  const firstDow = new Date(year,month,1).getDay();
+  const blanks = (firstDow===0?6:firstDow-1);
+  const lastDay = new Date(year,month+1,0).getDate();
+  const labels = ['一','二','三','四','五','六','日'];
+
+  const weekdayRow = labels.map(l=>`<div class="month-weekday">${l}</div>`).join('');
+  let days = Array(blanks).fill(`<div class="month-day"><div class="month-num other-month"></div><div class="month-dot"></div></div>`).join('');
+  for (let d=1; d<=lastDay; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const hasEvents = (db.schedules[dateStr]||[]).length > 0;
+    days += `<div class="month-day" onclick="gotoDay('${dateStr}')">
+      <div class="month-num ${dateStr===todayStr?'is-today':''}">${d}</div>
+      <div class="month-dot ${hasEvents?'show':''}"></div>
+    </div>`;
+  }
+  document.getElementById('schedule-content').innerHTML =
+    `<div class="month-grid"><div class="month-weekdays">${weekdayRow}</div><div class="month-days">${days}</div></div>
+     <div class="week-hint">点击某天查看详情</div>`;
+}
+
 function toggleBlock(id) {
   const b = (db.schedules[curDate]||[]).find(b=>b.id===id);
-  if (b) { b.done=!b.done; save(); renderSchedule(); }
+  if (b) { b.done=!b.done; save(); renderDayView(); }
 }
 function delBlock(id) {
   if (db.schedules[curDate])
     db.schedules[curDate] = db.schedules[curDate].filter(b=>b.id!==id);
-  save(); renderSchedule();
+  save(); renderDayView();
 }
 function saveBlock() {
   const start = document.getElementById('s-start').value;
   const text  = document.getElementById('s-text').value.trim();
-  if (!start || !text) return;
+  if (!start||!text) return;
   if (!db.schedules[curDate]) db.schedules[curDate]=[];
   db.schedules[curDate].push({ id:uid(), start, end:document.getElementById('s-end').value, text, done:false });
-  save(); close('m-schedule'); renderSchedule();
+  save(); close('m-schedule'); renderDayView();
 }
 
 // ── Modals ────────────────────────────────────────
