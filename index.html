@@ -305,45 +305,46 @@ body {
 /* Date nav */
 .date-nav {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   background: var(--card);
   border-radius: 12px;
-  padding: 10px 8px;
   margin-bottom: 14px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  overflow: hidden;
+}
+.nav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 26px;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 14px 0;
+  line-height: 1;
+  text-align: center;
+}
+.nav-btn:active { background: var(--bg); }
+.nav-center {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+  gap: 2px;
 }
 .breadcrumb-btn {
   background: none;
   border: none;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--primary);
   cursor: pointer;
   font-family: inherit;
-  padding: 4px 8px;
-  border-radius: 8px;
-  min-width: 52px;
-  text-align: left;
+  padding: 0;
   white-space: nowrap;
 }
-.breadcrumb-btn:active { background: var(--bg); }
-.nav-center {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.nav-btn {
-  background: none;
-  border: none;
-  font-size: 28px;
-  color: var(--primary);
-  cursor: pointer;
-  padding: 8px 18px;
-  line-height: 1;
-  min-width: 52px;
-  text-align: center;
-}
+.breadcrumb-btn:active { opacity: 0.6; }
 .date-text { font-size: 15px; font-weight: 600; }
 
 /* Year view */
@@ -601,13 +602,12 @@ body {
 <!-- Schedule Panel -->
 <div id="panel-schedule" class="panel active">
   <div class="date-nav">
-    <button class="breadcrumb-btn" id="breadcrumb-btn" onclick="zoomOut()"></button>
+    <button class="nav-btn" onclick="navSchedule(-1)">‹</button>
     <div class="nav-center">
-      <button class="nav-btn" onclick="navSchedule(-1)">‹</button>
+      <button class="breadcrumb-btn" id="breadcrumb-btn" onclick="zoomOut()"></button>
       <span class="date-text" id="date-text"></span>
-      <button class="nav-btn" onclick="navSchedule(1)">›</button>
     </div>
-    <div style="min-width:52px"></div>
+    <button class="nav-btn" onclick="navSchedule(1)">›</button>
   </div>
   <div id="schedule-content"></div>
 </div>
