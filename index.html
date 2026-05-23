@@ -602,12 +602,12 @@ body {
 <!-- Schedule Panel -->
 <div id="panel-schedule" class="panel active">
   <div class="date-nav">
-    <button class="nav-btn" onclick="navSchedule(-1)">‹</button>
+    <button class="nav-btn" id="nav-prev">‹</button>
     <div class="nav-center">
       <button class="breadcrumb-btn" id="breadcrumb-btn" onclick="zoomOut()"></button>
       <span class="date-text" id="date-text"></span>
     </div>
-    <button class="nav-btn" onclick="navSchedule(1)">›</button>
+    <button class="nav-btn" id="nav-next">›</button>
   </div>
   <div id="schedule-content"></div>
 </div>
@@ -1318,19 +1318,37 @@ function onFab() {
   });
 })();
 
-// ── Swipe to navigate schedule ────────────────────
+// ── Nav buttons & swipe ───────────────────────────
 (function() {
-  let startX = 0, startY = 0;
+  // Buttons: use touchend directly for reliability on mobile
+  function bindNavBtn(id, d) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('touchend', e => {
+      e.preventDefault();
+      navSchedule(d);
+    });
+    btn.addEventListener('click', () => navSchedule(d)); // fallback for desktop
+  }
+  bindNavBtn('nav-prev', -1);
+  bindNavBtn('nav-next', 1);
+
+  // Swipe gesture (single touch only to avoid multi-touch dx errors)
+  let startX = 0, startY = 0, trackId = null;
   document.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { trackId = null; return; }
+    trackId = e.touches[0].identifier;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
   }, { passive: true });
   document.addEventListener('touchend', e => {
-    if (tab !== 'schedule' || schedView !== 'day') return;
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx > 0 && startX < 30) return; // iOS back gesture from left edge
+    if (tab !== 'schedule' || schedView !== 'day' || trackId === null) return;
+    const t = Array.from(e.changedTouches).find(t => t.identifier === trackId);
+    if (!t) return;
+    trackId = null;
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx > 0 && startX < 30) return;
       navSchedule(dx < 0 ? 1 : -1);
     }
   }, { passive: true });
