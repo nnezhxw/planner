@@ -990,9 +990,9 @@ function saveRecord() {
   save(); close('m-record'); renderHabits();
 }
 function delHabit(id) {
-  if (!confirm('删除这个习惯？')) return;
   db.habits = db.habits.filter(h=>h.id!==id);
   save(); renderHabits();
+  showToast('已删除习惯');
 }
 function onHabitTypeChange() {
   const t = document.getElementById('h-type').value;
