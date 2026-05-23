@@ -559,9 +559,9 @@ body {
 
 <!-- Tab bar -->
 <div class="tab-bar">
+  <button class="tab-btn" onclick="switchTab('schedule')">日程</button>
   <button class="tab-btn active" onclick="switchTab('todo')">待办</button>
   <button class="tab-btn" onclick="switchTab('habits')">习惯</button>
-  <button class="tab-btn" onclick="switchTab('schedule')">日程</button>
 </div>
 
 <!-- Sync status bar -->
@@ -822,7 +822,7 @@ function weekOf(dateStr) {
 let tab = 'todo';
 function switchTab(t) {
   tab = t;
-  const names = ['todo','habits','schedule'];
+  const names = ['schedule','todo','habits'];
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', names[i]===t));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-'+t).classList.add('active');
