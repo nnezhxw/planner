@@ -1344,7 +1344,7 @@ function onFab() {
     startY = e.touches[0].clientY;
   }, { passive: true });
   document.addEventListener('touchend', e => {
-    if (tab !== 'schedule' || schedView !== 'day' || trackId === null) return;
+    if (tab !== 'schedule' || trackId === null) return;
     const t = Array.from(e.changedTouches).find(t => t.identifier === trackId);
     if (!t) return;
     trackId = null;
