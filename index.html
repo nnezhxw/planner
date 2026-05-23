@@ -56,7 +56,7 @@
 .month-weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 4px; }
 .month-weekday { text-align: center; font-size: 11px; color: var(--text2); padding: 4px 0; }
 .month-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 1px; }
-.month-day { display: flex; flex-direction: column; align-items: center; padding: 4px 0; cursor: pointer; border-radius: 8px; }
+.month-day { display: flex; flex-direction: column; align-items: center; padding: 4px 0; cursor: pointer; border-radius: 8px; border: none; background: none; font-family: inherit; }
 .month-day:active { background: var(--bg); }
 .month-num { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 14px; }
 .month-num.is-today { background: var(--primary); color: white; font-weight: 600; }
@@ -365,6 +365,9 @@ body {
   border-radius: 10px;
   cursor: pointer;
   gap: 6px;
+  border: none;
+  background: none;
+  font-family: inherit;
 }
 .year-month:active { background: var(--bg); }
 .year-month-name { font-size: 15px; font-weight: 500; }
@@ -1104,10 +1107,10 @@ function renderMonthView() {
   for (let d=1; d<=lastDay; d++) {
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const hasEvents = (db.schedules[dateStr]||[]).length > 0;
-    days += `<div class="month-day" onclick="gotoDay('${dateStr}')">
+    days += `<button class="month-day" onclick="gotoDay('${dateStr}')">
       <div class="month-num ${dateStr===todayStr?'is-today':''}">${d}</div>
       <div class="month-dot ${hasEvents?'show':''}"></div>
-    </div>`;
+    </button>`;
   }
   document.getElementById('schedule-content').innerHTML =
     `<div class="month-grid"><div class="month-weekdays">${weekdayRow}</div><div class="month-days">${days}</div></div>
@@ -1125,10 +1128,10 @@ function renderYearView() {
     const prefix = `${year}-${String(i+1).padStart(2,'0')}`;
     const hasEvents = Object.keys(db.schedules).some(k => k.startsWith(prefix));
     const dateStr = `${prefix}-01`;
-    return `<div class="year-month${i===curMonth?' cur-month':''}" onclick="gotoMonth('${dateStr}')">
+    return `<button class="year-month${i===curMonth?' cur-month':''}" onclick="gotoMonth('${dateStr}')">
       <div class="year-month-name">${i+1}月</div>
       <div class="month-dot ${hasEvents?'show':''}"></div>
-    </div>`;
+    </button>`;
   }).join('');
 
   document.getElementById('schedule-content').innerHTML = `<div class="year-grid">${months}</div>`;
